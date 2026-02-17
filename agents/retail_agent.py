@@ -55,7 +55,40 @@ def get_customer_facing_response(user_input, agent, openai_client, conversation_
         )
         return response.output_text
     except Exception as exc:
-        return f"retail_agent Error: {str(exc)}"
+        # Emit detailed diagnostics to the server log (traceback + any HTTP response headers)
+        import traceback, sys, json
+
+        print("DEBUG: retail_agent invocation failed — full traceback follows", flush=True, file=sys.stderr)
+        traceback.print_exc()
+
+        details = {}
+        try:
+            if hasattr(exc, "status_code"):
+                details["status_code"] = getattr(exc, "status_code")
+
+            # Some SDK exceptions expose a `response` or `raw_response` with headers/text
+            resp = getattr(exc, "response", None) or getattr(exc, "raw_response", None)
+            if resp is not None:
+                try:
+                    details["response_text"] = getattr(resp, "text", str(resp))
+                except Exception:
+                    details["response_text"] = str(resp)
+
+                headers = getattr(resp, "headers", None)
+                if headers:
+                    for h in ("x-ms-correlation-request-id", "x-ms-request-id", "request-id", "x-ms-cv"):
+                        if h in headers:
+                            details[h] = headers[h]
+        except Exception:
+            # best-effort only — don't raise from the error handler
+            pass
+
+        try:
+            print("DEBUG: retail_agent error details: " + json.dumps(details), flush=True, file=sys.stderr)
+        except Exception:
+            print("DEBUG: retail_agent error details: (unserializable)", flush=True, file=sys.stderr)
+
+        return f"retail_agent Error: {str(exc)} (see server logs for details)"
 
 
 def _build_recent_history_excerpt(conversation_history, limit=6):
