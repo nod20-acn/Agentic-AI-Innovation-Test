@@ -4,9 +4,10 @@ set -e
 # Run from repository root (helps when startup context differs)
 cd "$(dirname "$0")" || true
 
-PORT="${PORT:-8000}"
+# Prefer App Service port (WEBSITES_PORT) if provided, otherwise use PORT, then fallback to 8000
+PORT="${PORT:-${WEBSITES_PORT:-8000}}"
 
-echo "[startup] Streamlit starting on port ${PORT} — $(date)"
+echo "[startup] Streamlit starting on port ${PORT} (WEBSITES_PORT=${WEBSITES_PORT:-<unset>}) — $(date)"
 
 if [ -f app.py ]; then
     exec python -m streamlit run app.py --server.port "$PORT" --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false --logger.level info
