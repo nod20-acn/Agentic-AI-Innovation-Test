@@ -160,11 +160,16 @@ The app will open at `http://localhost:8501`
 
 ## 🔐 Authentication
 
-The application uses `DefaultAzureCredential` first, with `InteractiveBrowserCredential` fallback for local development.
+The application uses `DefaultAzureCredential` first, with `InteractiveBrowserCredential` fallback for local development. It also supports an explicit user‑assigned managed identity for App Service deployments.
 
-1. In hosted/cloud environments, managed identity or environment-based identity is used automatically.
-2. In local development, browser sign-in fallback is used when needed.
-3. Ensure your identity has access to the Azure AI resources.
+1. In hosted/cloud environments, the app will use platform credentials (system or user‑assigned managed identity). To force a specific user‑assigned MI configure `AZURE_MANAGED_IDENTITY_CLIENT_ID` in App Settings and attach that identity to the Web App.
+2. In local development, the SDK will use developer credentials (`az login`) or fall back to `InteractiveBrowserCredential` when needed.
+3. Ensure the identity (user or managed identity) has RBAC access to the Azure AI Project (we recommend the custom `Foundry Agents Reader` role or `Azure AI Project Manager` at the project scope).
+
+Quick checklist:
+- Set `AZURE_MANAGED_IDENTITY_CLIENT_ID` in App Service configuration if using a user‑assigned identity.
+- Attach the user‑assigned identity to the Web App (Portal → Identity → User assigned → Add).
+- Assign the identity the `Foundry Agents Reader` role (or `Azure AI Project Manager`) at the `AZURE_AIPROJECT_RESOURCE_ID` scope.
 
 ## 📁 Project Structure
 

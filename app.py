@@ -1,6 +1,11 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
+
+# Load environment variables early so module-level `os.getenv` (and imported agent modules)
+# see the values immediately when they are imported.
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
+
 import json
 import re
 from datetime import datetime
@@ -15,9 +20,6 @@ from agents.retail_orchestrator_agent import initialize_orchestrator_agent, orch
 from agents.utilities import map_state_to_phase
 from agents.product_agent import initialize_product_agent
 from agents.insurance_agent import initialize_insurance_agent
-
-# Load environment variables from .env file
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
 
 IS_APP_SERVICE = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("WEBSITE_INSTANCE_ID"))
 
@@ -519,6 +521,20 @@ with st.sidebar:
     
     # Agent Status - Compact
     st.subheader("🤖 Agents")
+    # Diagnostic: show whether a local .env file exists (helps root-cause "not loaded" cases)
+    _env_path = os.path.join(os.path.dirname(__file__), ".env")
+    st.caption(f".env present: {os.path.exists(_env_path)}")
+
+    # Show credential selection/diagnostic (helps validate local vs webapp auth flows)
+    cred_type = os.getenv("AZURE_CREDENTIAL_TYPE")
+    if not cred_type:
+        # reflect configuration that will be used (best-effort)
+        if os.getenv("AZURE_MANAGED_IDENTITY_CLIENT_ID"):
+            cred_type = f"user-assigned managed identity configured ({os.getenv('AZURE_MANAGED_IDENTITY_CLIENT_ID')})"
+        else:
+            cred_type = "DefaultAzureCredential (local or platform-managed)"
+    st.caption(f"Credential: {cred_type}")
+
     missing_env_vars = get_missing_required_env_vars()
     if missing_env_vars:
         st.error("Missing App Settings: " + ", ".join(missing_env_vars))
@@ -539,7 +555,17 @@ with st.sidebar:
         if agent_icons:
             st.success(" | ".join(agent_icons))
         else:
-            st.warning("No agents configured")
+            # More helpful diagnostics when agents exist as env vars but agent objects are None
+            st.warning("No agents configured — agent names appear set but were not found in the Azure AI Project")
+            st.markdown("**Configured agent names (from environment):**")
+            st.write(f"- AGENT_RETAIL = `{os.getenv('AGENT_RETAIL')}` — {'found' if agents.get('customer') else 'NOT FOUND'}")
+            st.write(f"- AGENT_ORCHESTRATOR = `{os.getenv('AGENT_ORCHESTRATOR')}` — {'found' if agents.get('orchestrator') else 'NOT FOUND'}")
+            st.write(f"- AGENT_PRODUCT = `{os.getenv('AGENT_PRODUCT')}` — {'found' if agents.get('product') else 'NOT FOUND'}")
+            st.write(f"- AGENT_INSURANCE = `{os.getenv('AGENT_INSURANCE')}` — {'found' if agents.get('insurance') else 'NOT FOUND'}")
+            if init_errors:
+                st.markdown("**Initialization errors (agent-level):**")
+                for k, v in init_errors.items():
+                    st.write(f"- {k}: {v}")
     else:
         st.error("Initialization failed")
 

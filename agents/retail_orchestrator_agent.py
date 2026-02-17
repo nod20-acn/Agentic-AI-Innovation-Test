@@ -24,7 +24,8 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"), ov
 def initialize_orchestrator_agent(project_client=None):
     """Initialize retail backend orchestrator agent."""
     tenant_id = os.getenv("AZURE_TENANT_ID")
-    orchestrator_name = os.getenv("AGENT_ORCHESTRATOR", "retail_orchestrator_agent")
+    # Default fallback matches the example/project naming used in deployment
+    orchestrator_name = os.getenv("AGENT_ORCHESTRATOR", "buybuddy-orchestrator")
 
     local_project_client = project_client
     if local_project_client is None:

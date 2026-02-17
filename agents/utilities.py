@@ -3,24 +3,52 @@ import json
 import base64
 import re
 
-from azure.identity import DefaultAzureCredential, InteractiveBrowserCredential
+from azure.identity import DefaultAzureCredential, InteractiveBrowserCredential, ManagedIdentityCredential
 
 
 def create_azure_credential(tenant_id=None):
-    """Create Azure credential with cloud-first strategy and local fallback."""
-    is_app_service = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("WEBSITE_INSTANCE_ID"))
-    credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
+    """Create Azure credential with cloud-first strategy and local fallback.
 
-    if is_app_service:
-        return credential
+    Behavior:
+    - If running in App Service and AZURE_MANAGED_IDENTITY_CLIENT_ID is set, prefer the
+      user-assigned ManagedIdentityCredential for deterministic authentication.
+    - Otherwise prefer DefaultAzureCredential and fall back to InteractiveBrowserCredential for local dev.
+
+    The function writes `AZURE_CREDENTIAL_TYPE` into the environment for runtime diagnostics.
+    """
+    is_app_service = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("WEBSITE_INSTANCE_ID"))
+
+    # Respect an explicitly configured user-assigned managed identity first (App Service)
+    managed_client_id = os.getenv("AZURE_MANAGED_IDENTITY_CLIENT_ID") or os.getenv("AZURE_CLIENT_ID")
+    if is_app_service and managed_client_id:
+        try:
+            cred = ManagedIdentityCredential(client_id=managed_client_id)
+            # validate quickly
+            cred.get_token("https://management.azure.com/.default")
+            os.environ["AZURE_CREDENTIAL_TYPE"] = f"ManagedIdentity(user_assigned:{managed_client_id})"
+            return cred
+        except Exception:
+            # fall through to DefaultAzureCredential as a safe fallback
+            os.environ["AZURE_CREDENTIAL_TYPE"] = "ManagedIdentity(failed)->DefaultAzureCredential"
+
+    # Default credential path (works for both local dev via az/VS credentials and platform identities)
+    credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
 
     try:
         credential.get_token("https://management.azure.com/.default")
+        os.environ["AZURE_CREDENTIAL_TYPE"] = "DefaultAzureCredential"
         return credential
     except Exception:
+        # If running in App Service, there's no interactive fallback — return the Default credential anyway
+        if is_app_service:
+            os.environ["AZURE_CREDENTIAL_TYPE"] = "DefaultAzureCredential(unverified)_AppService"
+            return credential
+
+        # Local developer - fall back to interactive browser sign-in
         browser_kwargs = {"additionally_allowed_tenants": ["*"]}
         if tenant_id:
             browser_kwargs["tenant_id"] = tenant_id
+        os.environ["AZURE_CREDENTIAL_TYPE"] = "InteractiveBrowserCredential"
         return InteractiveBrowserCredential(**browser_kwargs)
 
 

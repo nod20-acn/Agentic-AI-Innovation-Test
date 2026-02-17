@@ -1,0 +1,10 @@
+{
+  "Name": "Foundry Agents Reader",
+  "IsCustom": true,
+  "Description": "Read-only access to list Foundry project agents",
+  "Actions": [
+    "Microsoft.MachineLearningServices/workspaces/agents/read"
+  ],
+  "NotActions": [],
+  "AssignableScopes": [ "/subscriptions/636853bd-d211-473a-8b3f-66d7a567e631" ]
+}

@@ -24,7 +24,8 @@ def initialize_customer_facing_agent():
         credential=credential,
     )
 
-    agent_name = os.getenv("AGENT_RETAIL", "retail_agent")
+    # Use environment-configured agent name (fallback aligns with `.env.example`)
+    agent_name = os.getenv("AGENT_RETAIL", "retail-agent")
     try:
         agent = project_client.agents.get(agent_name=agent_name)
     except Exception:
